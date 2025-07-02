@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from tqdm.notebook import tqdm  # for progress bar
+from IPython.display import clear_output
 
 def parse_labels(labels, label_map=None):
     if not torch.is_tensor(labels):
@@ -24,6 +25,9 @@ def train(model, train_loader, test_loader, device=torch.device('cuda' if torch.
         optimizer = optim.AdamW(model.parameters(), lr=lr)
 
     model.to(device)
+
+    # Clear all prior outputs (console)
+    clear_output(wait=True)
 
     # Training loop
     for epoch in range(1, num_epochs + 1):
