@@ -74,3 +74,11 @@ def train(model, train_loader, test_loader, device=torch.device('cuda' if torch.
                       f"embed_dim_{model.embed_dim}_patch_size_{model.patch_size}_patch_dir_{model.patch_dir}"
     model_name = f"vit_{hyperparameters}.pth"
     torch.save(model.state_dict(), os.path.join(save_path, model_name))
+
+    # Free GPU memory
+    try:
+        model.to('cpu')  # move model parameters to CPU
+        del imgs, labels, logits, loss, optimizer  # delete large tensors and optimizer
+        torch.cuda.empty_cache()  # release cached memory
+    except Exception:
+        pass
