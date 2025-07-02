@@ -23,6 +23,8 @@ def train(model, train_loader, test_loader, device=torch.device('cuda' if torch.
     if optimizer is None:
         optimizer = optim.AdamW(model.parameters(), lr=lr)
 
+    model.to(device)
+
     # Training loop
     for epoch in range(1, num_epochs + 1):
         model.train()
