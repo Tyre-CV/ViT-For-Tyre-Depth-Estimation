@@ -84,8 +84,8 @@ def train(model, train_loader, test_loader, device=torch.device('cuda' if torch.
             torch.cuda.empty_cache()  # release cached memory
         except Exception:
             pass
-    finally:
-        raise e
+        finally:
+            raise e
     
     # Free GPU memory
     try:
