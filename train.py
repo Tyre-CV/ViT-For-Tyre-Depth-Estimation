@@ -179,12 +179,12 @@ def train(model, train_loader, test_loader, device=torch.device('cuda' if torch.
 
         # multi-GPU support
         model = nn.DataParallel(model)
-        print(f"Using {torch.cuda.device_count()} GPUs for training.")
 
         model.to(device)
 
         # Clear all prior outputs (console)
         clear_output(wait=True)
+        print(f"Using {torch.cuda.device_count()} GPUs for training.")
 
         # Training loop
         for epoch in range(1, num_epochs + 1):
@@ -201,7 +201,7 @@ def train(model, train_loader, test_loader, device=torch.device('cuda' if torch.
 
                 optimizer.zero_grad()
 
-                logits = model(imgs) # -> (B, num_classes)
+                logits, attn_maps = model(imgs) # -> (B, num_classes)
                 loss   = criterion(logits, labels)
                 loss.backward()
                 optimizer.step()
@@ -210,10 +210,10 @@ def train(model, train_loader, test_loader, device=torch.device('cuda' if torch.
                 preds = logits.argmax(dim=-1)
                 correct += (preds == labels).sum().item()
 
-                epoch_loss = running_loss / len(train_loader.dataset)
-                train_acc = correct / len(train_loader.dataset)
-                print(f"Epoch {epoch}:")
-                print(f"\t — train loss: {epoch_loss:.4f}, train acc: {train_acc:.4f}")
+            epoch_loss = running_loss / len(train_loader.dataset)
+            train_acc = correct / len(train_loader.dataset)
+            print(f"Epoch {epoch}:")
+            print(f"\t — train loss: {epoch_loss:.4f}, train acc: {train_acc:.4f}")
 
             # Test loop
             model.eval()

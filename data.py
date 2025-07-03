@@ -1,6 +1,6 @@
 from collections import defaultdict
 import os
-from random import random
+import random
 from torch.utils.data import Dataset, DataLoader, random_split
 import shutil
 import re 
@@ -109,9 +109,7 @@ def get_default_transform(
         ], p=p),
         # Gaussian blur on PIL
         transforms.RandomApply([transforms.GaussianBlur(kernel_size=blur_kernel, sigma=blur_sigma)], p=p),
-        # Add Gaussian noise in tensor space
-        transforms.RandomApply([T.GaussianNoise([noise_mean, noise_std])], p=p),
-        # To tensor 
+        # Convert to tensor
         transforms.ToTensor(),
     ])
 
@@ -162,6 +160,7 @@ class TirePairDataset(Dataset):
             img = self.transform(combined)
         else:
             img = transforms.ToTensor()(combined)
+
         return img, sample['class_idx']
 
 def get_file_name(file_path):
@@ -181,7 +180,7 @@ def get_info(file_path):
     side_part = parts[2].upper()
     # label needs to be passed from string to float
     try:
-        label_part = float(label_part)
+        label_part = label_part
     except ValueError:
         raise ValueError(f"Label '{label_part}' in file name '{file_name}' is not a valid float.")
     
@@ -198,8 +197,11 @@ def group_stereo(img_paths):
     #       'right': path_to_right_image,
     #   }
     # ]     }
+    file_names = os.listdir(img_paths)
+    file_names = [os.path.join(img_paths, f) for f in file_names]
+
     groups = defaultdict(list)
-    for path in img_paths:
+    for path in file_names:
         info = get_info(path)
         id = info['id']
         label = info['label']
@@ -207,7 +209,11 @@ def group_stereo(img_paths):
         # One side is sufficient
         if side == 'L':
             opposite_side = 'R'
-            groups[label].append({'left': path, 'right': os.path.join(os.path.dirname(path), f"{id}_{label}_{opposite_side}.png"), 'label': label})
+            groups[label].append({
+                'left': path, 
+                'right': os.path.join(os.path.dirname(path), f"{id}_{label}_{opposite_side}.png"), 
+                'label': label
+            })
     
     return groups
         
@@ -219,7 +225,7 @@ class TyrePairDataset(Dataset):
         self.sample = sample
         self.grouped_paths = group_stereo(data_dir)  
         # For indexing
-        self.samples = [*(values for values in self.grouped_paths.values())]
+        self.samples = [item for values in self.grouped_paths.values() for item in values]
         
     def __len__(self):
         return len(self.samples)
@@ -243,6 +249,10 @@ class TyrePairDataset(Dataset):
         else:
             img = transforms.ToTensor()(combined)
 
+        
+        # Squeeze the image to remove the channel dimension
+        img = img.squeeze(0)  # Assuming the image is grayscale, this will remove the channel dimension
+
         return img, sample['label']
 
 
@@ -259,8 +269,8 @@ def get_data_generators(
     if transform is None:
         transform = get_default_transform()
 
-    train_dataset = TyrePairDataset(root_dir=train_dir, transform=transform)
-    test_dataset = TyrePairDataset(root_dir=test_dir, transform=transform)
+    train_dataset = TyrePairDataset(data_dir=train_dir, transform=transform)
+    test_dataset = TyrePairDataset(data_dir=test_dir, transform=transform)
     
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=shuffle_train, num_workers=num_workers)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers)
