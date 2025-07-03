@@ -177,6 +177,10 @@ def train(model, train_loader, test_loader, device=torch.device('cuda' if torch.
         if optimizer is None:
             optimizer = optim.AdamW(model.parameters(), lr=lr)
 
+        # multi-GPU support
+        model = nn.DataParallel(model)
+        print(f"Using {torch.cuda.device_count()} GPUs for training.")
+
         model.to(device)
 
         # Clear all prior outputs (console)
