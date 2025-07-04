@@ -45,7 +45,7 @@ def save_loss(losses, save_dir="./losses"):
 def spooky():
     print("Booo 👻")
 
-def save_attention(attn_maps, labels, epoch, save_dir="./attention"):
+def save_attention_weights(attn_maps, labels, epoch, save_dir="./attention"):
     os.makedirs(save_dir, exist_ok=True)
     epoch_path = os.path.join(save_dir, f"training_epoch_{epoch:03d}.json")
 
@@ -253,7 +253,7 @@ def train(model, train_loader, test_loader, device=torch.device('cuda' if torch.
 
                     if save_attention and epoch == num_epochs:
                         # Save attention maps for the last layer
-                        save_attention(attn_maps, labels, epoch)
+                        save_attention_weights(attn_maps, labels, epoch)
 
             test_loss /= len(test_loader.dataset)
             test_acc  = correct / len(test_loader.dataset)
