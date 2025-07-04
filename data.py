@@ -89,8 +89,6 @@ def get_default_transform(
     sharpness_factor=2.0,
     blur_kernel=5,
     blur_sigma=(0.1, 2.0),
-    noise_mean=0.0,
-    noise_std=0.1
 ):
     return transforms.Compose([
         # v2 random effects
@@ -219,15 +217,21 @@ def group_stereo(img_paths):
         
 
 class TyrePairDataset(Dataset):
-    def __init__(self, data_dir, transform=None, sample=True):
+    def __init__(self, data_dir, transform=None, sample=False, sampling_size=None):
         super().__init__()
         self.transform = transform
+        if sample and sampling_size is None:
+            raise ValueError("If 'sample' is True, 'sampling_size' must be provided.")
+        if sample and sampling_size is not None:
+            self.sampling_size = sampling_size
         self.sample = sample
         self.grouped_paths = group_stereo(data_dir)  
         # For indexing
         self.samples = [item for values in self.grouped_paths.values() for item in values]
         
     def __len__(self):
+        if self.sample:
+            return self.sampling_size
         return len(self.samples)
 
     def __getitem__(self, idx):
@@ -264,13 +268,21 @@ def get_data_generators(
     batch_size=32,
     transform=None,
     shuffle_train=True,
-    num_workers=4
+    num_workers=4,
+    p=0.05,
+    sampling_size=None 
 ):
     if transform is None:
-        transform = get_default_transform()
-
-    train_dataset = TyrePairDataset(data_dir=train_dir, transform=transform)
-    test_dataset = TyrePairDataset(data_dir=test_dir, transform=transform)
+        transform = get_default_transform(p=p)
+    
+    if sampling_size is not None:
+        # If sampling size is provided, set sample to True
+        train_dataset = TyrePairDataset(data_dir=train_dir, transform=transform, sample=True, sampling_size=sampling_size)
+        test_dataset = TyrePairDataset(data_dir=test_dir, transform=transform, sample=True, sampling_size=sampling_size)
+    else:
+        # If no sampling size is provided, use the full dataset
+        train_dataset = TyrePairDataset(data_dir=train_dir, transform=transform)
+        test_dataset = TyrePairDataset(data_dir=test_dir, transform=transform)
     
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=shuffle_train, num_workers=num_workers)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers)

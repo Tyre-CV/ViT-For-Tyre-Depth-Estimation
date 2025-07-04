@@ -179,7 +179,7 @@ def save_checkpoint(model, optimizer, epoch, batch_size, loss, checkpoint_dir="c
     }, checkpoint_path)
     
 
-def train(model, train_loader, test_loader, device=torch.device('cuda' if torch.cuda.is_available() else 'cpu'), criterion=None, optimizer=None, num_epochs=10, lr=1e-4, save_path="./checkpoints", label_map=None):
+def train(model, train_loader, test_loader, device=torch.device('cuda' if torch.cuda.is_available() else 'cpu'), criterion=None, optimizer=None, num_epochs=10, lr=1e-4, save_path="./checkpoints", label_map=None, save_attention=False):
     
     # Setup
     try:
@@ -242,7 +242,9 @@ def train(model, train_loader, test_loader, device=torch.device('cuda' if torch.
                     preds = logits.argmax(dim=-1)
                     correct += (preds == labels).sum().item()
 
-                    save_attention(attn_maps, labels, epoch)
+                    if save_attention and epoch == num_epochs:
+                        # Save attention maps for the last layer
+                        save_attention(attn_maps, labels, epoch)
 
             test_loss /= len(test_loader.dataset)
             test_acc  = correct / len(test_loader.dataset)
