@@ -278,7 +278,7 @@ def get_data_generators(
     if sampling_size is not None:
         # If sampling size is provided, set sample to True
         train_dataset = TyrePairDataset(data_dir=train_dir, transform=transform, sample=True, sampling_size=sampling_size)
-        test_dataset = TyrePairDataset(data_dir=test_dir, transform=transform, sample=True, sampling_size=sampling_size)
+        test_dataset = TyrePairDataset(data_dir=test_dir, transform=transform, sample=True, sampling_size=int(sampling_size * 0.2))  # Assuming you want to sample 20% of the training size for testing
     else:
         # If no sampling size is provided, use the full dataset
         train_dataset = TyrePairDataset(data_dir=train_dir, transform=transform)
