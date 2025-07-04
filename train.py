@@ -23,22 +23,24 @@ def parse_labels(labels, label_map=None):
 
 
 def save_loss(losses, save_dir="./losses"):
-    os.makedirs(save_dir, exist_ok=True)  # Create save_dir if it doesn't exist
+    os.makedirs(os.path.join(save_dir, 'loss'), exist_ok=True)  # Create save_dir if it doesn't exist
 
     # Append new losses to existing file or create a new one
     loss_path = os.path.join(save_dir, 'loss', "losses.json")
+    existing_losses = defaultdict(list)
+
     if os.path.exists(loss_path):
         with open(loss_path, 'r') as f:
             existing_losses = json.load(f)
-    else:
-        existing_losses = defaultdict(list)
+        for key, value in existing_losses.items():
+            existing_losses[key] = value
 
-    new_losses = {**existing_losses}   
+     
     for key, value in losses.items():
-        new_losses[key].append(value)
+        existing_losses[key].append(value)
             
     with open(loss_path, 'w') as f:
-        json.dump(new_losses, f, indent=4)
+        json.dump(existing_losses, f, indent=4)
 
 def spooky():
     print("Booo 👻")
@@ -46,11 +48,14 @@ def spooky():
 def save_attention(attn_maps, labels, epoch, save_dir="./attention"):
     os.makedirs(save_dir, exist_ok=True)
     epoch_path = os.path.join(save_dir, f"training_epoch_{epoch:03d}.json")
+
+    attn_dict = defaultdict(list)
+
     if os.path.exists(epoch_path):
         with open(epoch_path, 'r') as f:
-            attn_dict = json.load(f)
-    else:
-        attn_dict = defaultdict(list)
+            loaded_dict = json.load(f)
+        for key, value in loaded_dict.items():
+            attn_dict[key] = value
     
     for i, label in enumerate(labels.tolist()):
         attn = attn_maps[-1][i, 0, 1:].detach().cpu().tolist()
@@ -63,9 +68,13 @@ def save_attention(attn_maps, labels, epoch, save_dir="./attention"):
 
 def plot_attention_map(epoch, model, save_dir="./attention", output_dir="./attn_plots"):    
     epoch_path = os.path.join(save_dir, f"training_epoch_{epoch:03d}.json")
+    if not os.path.exists(epoch_path):
+        raise FileNotFoundError(f"Attention map file for epoch {epoch} not found at {epoch_path}.")
+    
     with open(epoch_path, 'r') as f:
         attn_dict = json.load(f)
-    os.makedirs(output_dir, exist_ok=True)
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir, exist_ok=True)
 
     h,w = model.patch_size 
     H,W = model.image_size 
@@ -84,6 +93,9 @@ def plot_attention_map(epoch, model, save_dir="./attention", output_dir="./attn_
 def plot_training_progress(save_path, number_of_epochs=None, losses=None):
     # Load JSON if needed
     if losses is None:
+        # Check if the losses file exists
+        if not os.path.exists(os.path.join(save_path, 'loss', "losses.json")):
+            raise FileNotFoundError(f"Losses file not found at {os.path.join(save_path, 'loss', 'losses.json')}.")
         with open(os.path.join(save_path, 'loss', "losses.json"), 'r') as f:
             losses = json.load(f)
     if number_of_epochs is None:
@@ -150,13 +162,12 @@ def plot_training_progress(save_path, number_of_epochs=None, losses=None):
         template='simple_white'
     )
 
-    # Show in browser
-    fig.show(renderer="browser")
+    fig.show(renderer='kaggle')
     
 
 def save_checkpoint(model, optimizer, epoch, batch_size, loss, checkpoint_dir="checkpoints"):
-    os.makedirs(checkpoint_dir, exist_ok=True)  # Create dir if it doesn't exist
-    checkpoint_path = os.path.join(checkpoint_dir, 'model', f"Epoch_{epoch}.pth")
+    os.makedirs(os.path.join(checkpoint_dir, 'models'), exist_ok=True)  # Create dir if it doesn't exist
+    checkpoint_path = os.path.join(checkpoint_dir, 'models', f"Epoch_{epoch}.pth")
     
     torch.save({
         'epoch': epoch,
@@ -176,6 +187,9 @@ def train(model, train_loader, test_loader, device=torch.device('cuda' if torch.
             criterion = nn.CrossEntropyLoss()
         if optimizer is None:
             optimizer = optim.AdamW(model.parameters(), lr=lr)
+
+        # Ensure save_path exists
+        os.makedirs(save_path, exist_ok=True)
 
         # multi-GPU support
         model = nn.DataParallel(model)
@@ -244,13 +258,13 @@ def train(model, train_loader, test_loader, device=torch.device('cuda' if torch.
             # Save model epoch-wise
             save_checkpoint(model=model, optimizer=optimizer, epoch=epoch, batch_size=imgs.size(0), loss=loss, checkpoint_dir=save_path)
             # Save losses
-            save_loss(loss, save_dir="save_path")
+            save_loss(loss, save_dir=save_path)
 
             #Output
             # Clear console output for next epoch
-            clear_output(wait=True)  
-            # Show losses
-            plot_training_progress(save_path, number_of_epochs=num_epochs)
+            # clear_output(wait=True)  
+        # Show losses
+        plot_training_progress(save_path, number_of_epochs=num_epochs)
 
         
 
