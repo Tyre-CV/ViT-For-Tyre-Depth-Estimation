@@ -165,8 +165,17 @@ def plot_training_progress(save_path, number_of_epochs=None, losses=None):
     fig.show(renderer='kaggle')
     
 
-def save_checkpoint(model, optimizer, epoch, batch_size, loss, checkpoint_dir="checkpoints"):
+def save_checkpoint(model, optimizer, epoch, batch_size, loss, checkpoint_dir="checkpoints", history_length=6):
     os.makedirs(os.path.join(checkpoint_dir, 'models'), exist_ok=True)  # Create dir if it doesn't exist
+
+    # Check how many models are already saved
+    existing_models = [f for f in os.listdir(os.path.join(checkpoint_dir, 'models')) if f.endswith('.pth')]
+    # If we have more than history_length models, remove the oldest one
+    if len(existing_models) >= history_length:
+        existing_models.sort(key=lambda x: int(x.split('_')[1].split('.')[0]))
+        oldest_model = existing_models[0]
+        os.remove(os.path.join(checkpoint_dir, 'models', oldest_model))
+
     checkpoint_path = os.path.join(checkpoint_dir, 'models', f"Epoch_{epoch}.pth")
     
     torch.save({
@@ -179,7 +188,7 @@ def save_checkpoint(model, optimizer, epoch, batch_size, loss, checkpoint_dir="c
     }, checkpoint_path)
     
 
-def train(model, train_loader, test_loader, device=torch.device('cuda' if torch.cuda.is_available() else 'cpu'), criterion=None, optimizer=None, num_epochs=10, lr=1e-4, save_path="./checkpoints", label_map=None, save_attention=False):
+def train(model, train_loader, test_loader, device=torch.device('cuda' if torch.cuda.is_available() else 'cpu'), criterion=None, optimizer=None, num_epochs=10, lr=1e-4, save_path="./checkpoints", label_map=None, save_attention=False, history_length=6):
     
     # Setup
     try:
