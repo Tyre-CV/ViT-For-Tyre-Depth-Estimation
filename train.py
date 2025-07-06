@@ -90,7 +90,7 @@ def plot_attention_map(epoch, model, save_dir="./attention", output_dir="./attn_
         fig.write_html(out)
     
     
-def plot_training_progress(save_path, number_of_epochs=None, losses=None):
+def plot_training_progress(save_path, number_of_epochs=None, losses=None, renderer=None):
     # Load JSON if needed
     if losses is None:
         # Check if the losses file exists
@@ -161,8 +161,10 @@ def plot_training_progress(save_path, number_of_epochs=None, losses=None):
         legend=dict(x=0.01, y=0.99, bordercolor="black", borderwidth=1),
         template='simple_white'
     )
-
-    fig.show(renderer='kaggle')
+    if renderer is None:
+        fig.show()
+    else:
+        fig.show(renderer=renderer)
     
 
 def save_checkpoint(model, optimizer, epoch, batch_size, loss, checkpoint_dir="checkpoints", history_length=6):
@@ -205,6 +207,8 @@ def train(model, train_loader, test_loader, device=torch.device('cuda' if torch.
 
         model.to(device)
 
+        reverse_label_map = {v: k for k, v in label_map.items()} if label_map else None
+
         # Clear all prior outputs (console)
         clear_output(wait=True)
         print(f"Using {torch.cuda.device_count()} GPUs for training.")
@@ -241,30 +245,47 @@ def train(model, train_loader, test_loader, device=torch.device('cuda' if torch.
             # Test loop
             model.eval()
             with torch.no_grad():
-                test_loss, correct = 0.0, 0
+                test_loss_all, correct_all = 0.0, 0
+                # Label-Wise loss and accuracy
+                label_wise_loss = {lbl: 0.0 for lbl in label_map.values()} if label_map else None
+                label_wise_correct = {lbl: 0 for lbl in label_map.values()} if label_map else None                 
                 for imgs, labels in tqdm(test_loader, desc="Test", unit=" batch"):
                     imgs = imgs.to(device)
                     labels = parse_labels(labels, label_map)
                     labels = labels.to(device)
                     logits, attn_maps = model(imgs, return_attn = True)
-                    test_loss += criterion(logits, labels).item() * imgs.size(0)
+                    test_loss_all += criterion(logits, labels).item() * imgs.size(0)
                     preds = logits.argmax(dim=-1)
-                    correct += (preds == labels).sum().item()
+                    correct_all += (preds == labels).sum().item()
+                    if label_wise_loss is not None:
+                        for bucket_label in label_map.values():
+                            mask = (labels == bucket_label)
+                            if mask.any():
+                                label_wise_loss[bucket_label] += criterion(logits[mask], labels[mask]).item() * mask.sum().item()
+                                label_wise_correct[bucket_label] += (preds[mask] == labels[mask]).sum().item()
 
                     if save_attention and epoch == num_epochs:
                         # Save attention maps for the last layer
                         save_attention_weights(attn_maps, labels, epoch)
 
-            test_loss /= len(test_loader.dataset)
-            test_acc  = correct / len(test_loader.dataset)
-            print(f"\t — test loss: {test_loss:.4f}, test acc: {test_acc:.4f}")
+            test_loss_all /= len(test_loader.dataset)
+            test_acc_all  = correct_all / len(test_loader.dataset) if len(test_loader.dataset) > 0 else 0
+            print(f"\t — test loss: {test_loss_all:.4f}, test acc: {test_acc_all:.4f}")
+
+            # Print label-wise loss and accuracy
+            if label_wise_loss is not None:
+                for bucket_label, loss in label_wise_loss.items():
+                    acc = label_wise_correct[bucket_label] / (labels == bucket_label).sum().item() if (labels == bucket_label).sum().item() > 0 else 0
+                    print(f"\t\t —— {reverse_label_map[bucket_label] if reverse_label_map else bucket_label}: loss = {loss:.4f}, acc = {acc:.4f}")
             
             # Epoch summary
             loss = {
                 'train_loss': epoch_loss,
                 'train_acc': train_acc,
-                'test_loss': test_loss,
-                'test_acc': test_acc
+                'test_loss_all': test_loss_all,
+                'test_acc_all': test_acc_all,
+                'test_loss_buckets': label_wise_loss if label_wise_loss else [],
+                'test_acc_buckets': label_wise_correct if label_wise_correct else []
             }
             # Save model epoch-wise
             save_checkpoint(model=model, optimizer=optimizer, epoch=epoch, batch_size=imgs.size(0), loss=loss, checkpoint_dir=save_path)
@@ -285,8 +306,9 @@ def train(model, train_loader, test_loader, device=torch.device('cuda' if torch.
             model.to('cpu')  # move model parameters to CPU
             del train_loader, test_loader, model, criterion, optimizer  # delete large tensors and optimizer
             torch.cuda.empty_cache()  # release cached memory
-        except Exception:
-            pass
+        except Exception as e_free:
+            print("Error while freeing GPU memory.")
+            print(e_free)
         finally:
             raise e
     
@@ -295,8 +317,9 @@ def train(model, train_loader, test_loader, device=torch.device('cuda' if torch.
         model.to('cpu')  # move model parameters to CPU
         del imgs, labels, logits, loss, optimizer  # delete large tensors and optimizer
         torch.cuda.empty_cache()  # release cached memory
-    except Exception:
-        pass
+    except Exception as e_free:
+        print("Error while freeing GPU memory.")
+        print(e_free)
 
 if __name__ == "__main__":
     pass

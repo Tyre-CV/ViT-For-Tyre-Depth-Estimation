@@ -4,7 +4,7 @@
 
 import torch
 import torch.nn as nn
-from torchinfo import summary
+# from torchinfo import summary
 
 
 class PatchEmbedding(nn.Module):
@@ -153,9 +153,9 @@ if __name__ == "__main__":
     model = Transformer(embed_dim=1000, num_layers=6, num_heads=8, dropout=0.1, patch_size=(5,5), img_size=(1000, 2000), in_chans=1, num_classes=6)
     output = model(sample_input)
     predict = model.classify(sample_input)
-    summary(
-        model,
-        input_size=(32, 1000, 2000),  # batch, height, width
-        col_names=("input_size", "output_size", "num_params"),
-        depth=4
-    )
+    # summary(
+    #     model,
+    #     input_size=(32, 1000, 2000),  # batch, height, width
+    #     col_names=("input_size", "output_size", "num_params"),
+    #     depth=4
+    # )
