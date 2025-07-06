@@ -103,9 +103,9 @@ def plot_training_progress(save_path, number_of_epochs=None, losses=None, render
 
     # Truncate/pad data
     train_loss = losses['train_loss'][:number_of_epochs]
-    test_loss  = losses['test_loss'][:number_of_epochs]
+    test_loss  = losses['test_loss_all'][:number_of_epochs]
     train_acc  = losses['train_acc'][:number_of_epochs]
-    test_acc   = losses['test_acc'][:number_of_epochs]
+    test_acc   = losses['test_acc_all'][:number_of_epochs]
     epochs     = list(range(1, number_of_epochs + 1))
 
     # Create subplot with secondary y-axis
