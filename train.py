@@ -137,7 +137,8 @@ def plot_training_progress(
     save_path,
     number_of_epochs=None,
     losses=None,
-    renderer=None
+    renderer=None,
+    save=False
 ):
     # 1) Load nested JSON if not provided
     loss_file = os.path.join(save_path, 'loss', "losses.json")
@@ -196,9 +197,10 @@ def plot_training_progress(
     else:
         fig1.show()
 
-    # Save as html
-    fig1_path = os.path.join(save_path, 'loss', 'all_label_training_progress.html')
-    fig1.write_html(fig1_path)  
+    if save:
+        # Save as html
+        fig1_path = os.path.join(save_path, 'loss', 'all_label_training_progress.html')
+        fig1.write_html(fig1_path)  
 
     ### FIGURE 2: label‑wise ###
     base_colors = [
@@ -241,9 +243,10 @@ def plot_training_progress(
     else:
         fig2.show()
 
-    # Save as html
-    fig2_path = os.path.join(save_path, 'loss', 'label_wise_training_progress.html')
-    fig2.write_html(fig2_path)
+    if save:
+        # Save as html
+        fig2_path = os.path.join(save_path, 'loss', 'label_wise_training_progress.html')
+        fig2.write_html(fig2_path)
 
     
 
@@ -376,28 +379,35 @@ def train(
             test_acc_all   = correct_all / len(test_loader.dataset)
             print(f"\t— test loss: {test_loss_all:.4f}, test acc: {test_acc_all:.4f}")
 
-            # Print per‑label results
+            # Compute and print per‑label averages, and build dicts of averages for saving
+            avg_loss_buckets = {}
+            avg_acc_buckets  = {}
             if label_map:
                 for bucket_label in label_map.values():
                     cnt = label_wise_count[bucket_label]
                     if cnt > 0:
                         avg_loss = label_wise_loss[bucket_label] / cnt
-                        acc      = label_wise_correct[bucket_label] / cnt
+                        avg_acc  = label_wise_correct[bucket_label] / cnt
                     else:
                         avg_loss = 0.0
-                        acc      = 0.0
+                        avg_acc  = 0.0
+                    # print
                     name = reverse_label_map[bucket_label] if reverse_label_map else str(bucket_label)
-                    print(f"\t\t—— {name}: loss = {avg_loss:.4f}, acc = {acc:.4f}")
+                    print(f"\t\t—— {name}: loss = {avg_loss:.4f}, acc = {avg_acc:.4f}")
+                    # stash for saving
+                    avg_loss_buckets[bucket_label] = avg_loss
+                    avg_acc_buckets[bucket_label]  = avg_acc
 
-            # Save checkpoint & losses
+            # Save checkpoint & losses (now feeding averages instead of raw sums)
             metrics = {
-                'train_loss':   epoch_loss,
-                'train_acc':    train_acc,
-                'test_loss_all': test_loss_all,
-                'test_acc_all':  test_acc_all,
-                'test_loss_buckets':  label_wise_loss    if label_map else {},
-                'test_acc_buckets':   label_wise_correct if label_map else {}
+                'train_loss':       epoch_loss,
+                'train_acc':        train_acc,
+                'test_loss_all':    test_loss_all,
+                'test_acc_all':     test_acc_all,
+                'test_loss_buckets': avg_loss_buckets,
+                'test_acc_buckets':  avg_acc_buckets
             }
+
             save_checkpoint(
                 model=model,
                 optimizer=optimizer,
@@ -433,4 +443,4 @@ def train(
 
 
 if __name__ == "__main__":
-    plot_training_progress(save_path="./", renderer='browser')
+    plot_training_progress(save_path="./", renderer='browser', save=True)
