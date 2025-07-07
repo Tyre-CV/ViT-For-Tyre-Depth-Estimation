@@ -187,7 +187,8 @@ def plot_training_progress(
     fig1.update_layout(
         title='All‑label (Epoch‑wise) Training Progress',
         legend=dict(x=0.01, y=0.99, bordercolor="black", borderwidth=1),
-        template='simple_white', height=500, width=800
+        template='simple_white', 
+        # height=500, width=800
     )
 
     if renderer:
@@ -195,6 +196,9 @@ def plot_training_progress(
     else:
         fig1.show()
 
+    # Save as html
+    fig1_path = os.path.join(save_path, 'loss', 'all_label_training_progress.html')
+    fig1.write_html(fig1_path)  
 
     ### FIGURE 2: label‑wise ###
     base_colors = [
@@ -228,13 +232,18 @@ def plot_training_progress(
     fig2.update_layout(
         title='Label‑wise Training Progress',
         legend=dict(x=0.01, y=0.99, bordercolor="black", borderwidth=1),
-        template='simple_white', height=500, width=800
+        template='simple_white', 
+        # height=500, width=800
     )
 
     if renderer:
         fig2.show(renderer=renderer)
     else:
         fig2.show()
+
+    # Save as html
+    fig2_path = os.path.join(save_path, 'loss', 'label_wise_training_progress.html')
+    fig2.write_html(fig2_path)
 
     
 
