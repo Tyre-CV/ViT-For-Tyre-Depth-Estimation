@@ -24,7 +24,7 @@ def parse_labels(labels, label_map=None):
 
 
 def save_loss(losses, save_dir="./losses"):
-    # Prepare output path
+    # Prepare paths
     loss_dir  = os.path.join(save_dir, 'loss')
     os.makedirs(loss_dir, exist_ok=True)
     loss_path = os.path.join(loss_dir, "losses.json")
@@ -34,29 +34,41 @@ def save_loss(losses, save_dir="./losses"):
         with open(loss_path, 'r') as f:
             existing = json.load(f)
     else:
-        existing = {}
+        existing = {
+            "all-label": {
+                "train": {"loss": [], "acc": []},
+                "test":  {"loss": [], "acc": []}
+            },
+            "label-wise": []
+        }
 
-    # Ensure every top‑level list exists
-    # (in case someone renames keys later)
-    for key in ['train_loss', 'train_acc', 'test_loss_all', 'test_acc_all']:
-        existing.setdefault(key, [])
+    # Append ball-label scalars
+    existing["all-label"]["train"]["loss"].append(losses.get('train_loss'))
+    existing["all-label"]["train"]["acc"].append( losses.get('train_acc'))
+    existing["all-label"]["test"]["loss"].append( losses.get('test_loss_all'))
+    existing["all-label"]["test"]["acc"].append(  losses.get('test_acc_all'))
 
-    # Append the global scalars
-    for key in ['train_loss', 'train_acc', 'test_loss_all', 'test_acc_all']:
-        if key in losses:
-            existing[key].append(losses[key])
+    # Append/update label‑wise entries
+    # Map label→dict for quick lookup
+    label_dict = { entry["label"]: entry for entry in existing["label-wise"] }
 
-    # Flatten & append per-label buckets
-    # losses['test_loss_buckets'] and losses['test_acc_buckets']
-    for bucket_label, bucket_loss in losses.get('test_loss_buckets', {}).items():
-        lbl_key = f"test_loss_label_{bucket_label}"
-        existing.setdefault(lbl_key, []).append(bucket_loss)
+    loss_buckets = losses.get('test_loss_buckets', {})
+    acc_buckets  = losses.get('test_acc_buckets', {})
 
-    for bucket_label, bucket_acc in losses.get('test_acc_buckets', {}).items():
-        lbl_key = f"test_acc_label_{bucket_label}"
-        existing.setdefault(lbl_key, []).append(bucket_acc)
+    for label, label_loss in loss_buckets.items():
+        label_acc = acc_buckets.get(label, 0.0)
 
-    # Write back out
+        if label in label_dict:
+            entry = label_dict[label]
+        else:
+            entry = {"label": label, "loss": [], "acc": []}
+            existing["label-wise"].append(entry)
+            label_dict[label] = entry
+
+        entry["loss"].append(label_loss)
+        entry["acc"].append(label_acc)
+
+    # Save back out
     with open(loss_path, 'w') as f:
         json.dump(existing, f, indent=4)
 
@@ -109,6 +121,10 @@ def plot_attention_map(epoch, model, save_dir="./attention", output_dir="./attn_
     
     
 def lighten_hex_color(hex_color, amount=0.5):
+    """
+    Lighten a HEX color by blending it with white.
+    amount: 0 (no change) → 1 (white)
+    """
     hex_color = hex_color.lstrip('#')
     r, g, b = [int(hex_color[i:i+2], 16) for i in (0, 2, 4)]
     r = int(r + (255 - r) * amount)
@@ -116,14 +132,14 @@ def lighten_hex_color(hex_color, amount=0.5):
     b = int(b + (255 - b) * amount)
     return f'#{r:02x}{g:02x}{b:02x}'
 
+
 def plot_training_progress(
     save_path,
     number_of_epochs=None,
     losses=None,
-    include='batch',       # 'batch' | 'label' | 'both'
     renderer=None
 ):
-    # Load JSON if not passed in
+    # 1) Load nested JSON if not provided
     loss_file = os.path.join(save_path, 'loss', "losses.json")
     if losses is None:
         if not os.path.exists(loss_file):
@@ -131,97 +147,95 @@ def plot_training_progress(
         with open(loss_file, 'r') as f:
             losses = json.load(f)
 
-    # Determine epoch range
-    if number_of_epochs is None:
-        number_of_epochs = len(losses.get('train_loss', []))
-    epochs = list(range(1, number_of_epochs + 1))
+    # 2) Determine epochs from “all-label”
+    all_label = losses["all-label"]
+    train_loss = all_label["train"]["loss"]
+    total_epochs = len(train_loss) if number_of_epochs is None else number_of_epochs
+    epochs = list(range(1, total_epochs + 1))
 
-    # Prepare overall curves
-    train_loss = losses['train_loss'][:number_of_epochs]
-    test_loss  = losses['test_loss_all'][:number_of_epochs]
-    train_acc  = losses['train_acc'][:number_of_epochs]
-    test_acc   = losses['test_acc_all'][:number_of_epochs]
+    ### FIGURE 1: all-label ###
+    fig1 = make_subplots(specs=[[{"secondary_y": True}]])
 
-    # Detect label‑wise keys
-    #    Keys in JSON are like 'test_loss_label_{label}' and 'test_acc_label_{label}'
-    loss_keys = [k for k in losses if k.startswith('test_loss_label_')]
-    # extract the label id from key
-    labels = [re.findall(r'test_loss_label_(.+)', k)[0] for k in loss_keys]
-    # sort labels naturally
-    labels = sorted(labels, key=lambda x: int(x) if x.isdigit() else x)
+    bt_l = train_loss[:total_epochs]
+    bt_a = all_label["train"]["acc"][:total_epochs]
+    ts_l = all_label["test"]["loss"][:total_epochs]
+    ts_a = all_label["test"]["acc"][:total_epochs]
 
-    # Create subplot with secondary y-axis
-    fig = make_subplots(specs=[[{"secondary_y": True}]])
+    # Loss (left axis)
+    fig1.add_trace(go.Scatter(
+        x=epochs, y=bt_l, mode='lines+markers', name='Train Loss',
+        line=dict(color='rgb(0, 0, 127.5)')
+    ), secondary_y=False)
+    fig1.add_trace(go.Scatter(
+        x=epochs, y=ts_l, mode='lines+markers', name='Test Loss',
+        line=dict(color='rgb(127.5, 127.5, 255)')
+    ), secondary_y=False)
 
-    # Add overall (batch) curves if requested
-    if include in ('batch', 'both'):
-        # use fixed colors for batch curves
-        fig.add_trace(go.Scatter(
-            x=epochs, y=train_loss, mode='lines+markers', name='Train Loss'
-        ), secondary_y=False)
-        fig.add_trace(go.Scatter(
-            x=epochs, y=test_loss,  mode='lines+markers', name='Test Loss'
-        ), secondary_y=False)
-        fig.add_trace(go.Scatter(
-            x=epochs, y=train_acc,  mode='lines+markers', name='Train Acc'
-        ), secondary_y=True)
-        fig.add_trace(go.Scatter(
-            x=epochs, y=test_acc,   mode='lines+markers', name='Test Acc'
-        ), secondary_y=True)
+    # Acc (right axis)
+    fig1.add_trace(go.Scatter(
+        x=epochs, y=bt_a, mode='lines+markers', name='Train Acc',
+        line=dict(color='#b22222')
+    ), secondary_y=True)
+    fig1.add_trace(go.Scatter(
+        x=epochs, y=ts_a, mode='lines+markers', name='Test Acc',
+        line=dict(color='#ff6f3c')
+    ), secondary_y=True)
 
-    # Add per‑label curves if requested
-    if include in ('label', 'both') and labels:
-        # pick a qualitative palette
-        palette = px.colors.qualitative.Plotly
-        for i, label in enumerate(labels):
-            color = palette[i % len(palette)]
-            light_color = lighten_hex_color(color, amount=0.6)
-
-            # fetch data
-            lkey = f'test_loss_label_{label}'
-            akey = f'test_acc_label_{label}'
-            lbl_loss = losses.get(lkey, [])[:number_of_epochs]
-            lbl_acc  = losses.get(akey, [])[:number_of_epochs]
-
-            # add loss
-            fig.add_trace(go.Scatter(
-                x=epochs, y=lbl_loss,
-                mode='lines+markers',
-                name=f'Loss [{label}]',
-                line=dict(color=color),
-            ), secondary_y=False)
-
-            # add accuracy
-            fig.add_trace(go.Scatter(
-                x=epochs, y=lbl_acc,
-                mode='lines+markers',
-                name=f'Acc [{label}]',
-                line=dict(color=light_color),
-            ), secondary_y=True)
-
-    # Axis formatting
-    fig.update_xaxes(
-        title_text='Epoch',
-        range=[1, number_of_epochs],
-        tickmode='linear',
-        dtick=1
-    )
-    fig.update_yaxes(title_text='Loss',     secondary_y=False)
-    fig.update_yaxes(title_text='Accuracy', secondary_y=True)
-
-    # Layout
-    fig.update_layout(
-        title='Training Progress',
+    fig1.update_xaxes(title_text='Epoch', range=[1, total_epochs], tickmode='linear', dtick=1)
+    fig1.update_yaxes(title_text='Loss', secondary_y=False)
+    fig1.update_yaxes(title_text='Accuracy', secondary_y=True)
+    fig1.update_layout(
+        title='All‑label (Epoch‑wise) Training Progress',
         legend=dict(x=0.01, y=0.99, bordercolor="black", borderwidth=1),
-        template='simple_white',
-        height=600, width=900
+        template='simple_white', height=500, width=800
     )
 
-    # Show
     if renderer:
-        fig.show(renderer=renderer)
+        fig1.show(renderer=renderer)
     else:
-        fig.show()
+        fig1.show()
+
+
+    ### FIGURE 2: label‑wise ###
+    base_colors = [
+        '#e41a1c','#377eb8','#4daf4a','#984ea3',
+        '#ff7f00','#ffff33','#a65628','#f781bf','#999999'
+    ]
+
+    fig2 = make_subplots(specs=[[{"secondary_y": True}]])
+
+    for idx, entry in enumerate(losses.get("label-wise", [])):
+        label = entry["label"]
+        lbl_loss = entry["loss"][:total_epochs]
+        lbl_acc  = entry["acc"][:total_epochs]
+
+        color = base_colors[idx % len(base_colors)]
+        light_color = lighten_hex_color(color, amount=0.6)
+
+        fig2.add_trace(go.Scatter(
+            x=epochs, y=lbl_loss, mode='lines+markers',
+            name=f'Loss [{label}]', line=dict(color=color)
+        ), secondary_y=False)
+
+        fig2.add_trace(go.Scatter(
+            x=epochs, y=lbl_acc, mode='lines+markers',
+            name=f'Acc [{label}]', line=dict(color=light_color)
+        ), secondary_y=True)
+
+    fig2.update_xaxes(title_text='Epoch', range=[1, total_epochs], tickmode='linear', dtick=1)
+    fig2.update_yaxes(title_text='Loss', secondary_y=False)
+    fig2.update_yaxes(title_text='Accuracy', secondary_y=True)
+    fig2.update_layout(
+        title='Label‑wise Training Progress',
+        legend=dict(x=0.01, y=0.99, bordercolor="black", borderwidth=1),
+        template='simple_white', height=500, width=800
+    )
+
+    if renderer:
+        fig2.show(renderer=renderer)
+    else:
+        fig2.show()
+
     
 
 def save_checkpoint(model, optimizer, epoch, batch_size, loss, checkpoint_dir="checkpoints", history_length=6):
@@ -410,4 +424,4 @@ def train(
 
 
 if __name__ == "__main__":
-    pass 
+    plot_training_progress(save_path="./", renderer='browser')
