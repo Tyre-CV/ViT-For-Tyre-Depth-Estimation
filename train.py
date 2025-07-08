@@ -391,12 +391,12 @@ def train(
                     else:
                         avg_loss = 0.0
                         avg_acc  = 0.0
-                    # print
-                    name = reverse_label_map[bucket_label] if reverse_label_map else str(bucket_label)
-                    print(f"\t\t—— {name}: loss = {avg_loss:.4f}, acc = {avg_acc:.4f}")
-                    # stash for saving
-                    avg_loss_buckets[label_map[bucket_label]] = avg_loss
-                    avg_acc_buckets[label_map[bucket_label]]  = avg_acc
+                    # print original-text label
+                    orig_label = reverse_label_map[bucket_label]
+                    print(f"\t\t—— {orig_label}: loss = {avg_loss:.4f}, acc = {avg_acc:.4f}")
+                    # stash for saving under the original-text key
+                    avg_loss_buckets[orig_label] = avg_loss
+                    avg_acc_buckets[orig_label]  = avg_acc
 
             # Save checkpoint & losses (now feeding averages instead of raw sums)
             metrics = {
