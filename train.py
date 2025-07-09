@@ -294,7 +294,9 @@ def train(
             optimizer = optim.AdamW(model.parameters(), lr=lr)
 
         os.makedirs(save_path, exist_ok=True)
-        model = nn.DataParallel(model)
+        # check if already module
+        if not isinstance(model, nn.DataParallel):
+            model = nn.DataParallel(model)
         model.to(device)
 
         reverse_label_map = {v: k for k, v in label_map.items()} if label_map else None
