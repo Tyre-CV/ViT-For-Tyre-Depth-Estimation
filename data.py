@@ -269,20 +269,25 @@ def get_data_generators(
     transform=None,
     shuffle_train=True,
     num_workers=4,
-    p=0.05,
+    p=0.05, # can either be one value for both or a tuple (p_train, p_test)
     sampling_size=None 
 ):
+    
     if transform is None:
-        transform = get_default_transform(p=p)
+        if isinstance(p, tuple):
+            print(f"Using different p's, for train and test")
+            transform= [get_default_transform(p[0],p[1])]
+        else:
+            transform = [get_default_transform(p=p) for _ in range(2)]
     
     if sampling_size is not None:
         # If sampling size is provided, set sample to True
-        train_dataset = TyrePairDataset(data_dir=train_dir, transform=transform, sample=True, sampling_size=sampling_size)
-        test_dataset = TyrePairDataset(data_dir=test_dir, transform=transform, sample=True, sampling_size=int(sampling_size * 0.2))  # Assuming you want to sample 20% of the training size for testing
+        train_dataset = TyrePairDataset(data_dir=train_dir, transform=transform[0], sample=True, sampling_size=sampling_size)
+        test_dataset = TyrePairDataset(data_dir=test_dir, transform=transform[1], sample=True, sampling_size=int(sampling_size * 0.2))  # Assuming you want to sample 20% of the training size for testing
     else:
         # If no sampling size is provided, use the full dataset
-        train_dataset = TyrePairDataset(data_dir=train_dir, transform=transform)
-        test_dataset = TyrePairDataset(data_dir=test_dir, transform=transform)
+        train_dataset = TyrePairDataset(data_dir=train_dir, transform=transform[0])
+        test_dataset = TyrePairDataset(data_dir=test_dir, transform=transform[1])
     
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=shuffle_train, num_workers=num_workers)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers)
