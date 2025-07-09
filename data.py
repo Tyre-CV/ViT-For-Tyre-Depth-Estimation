@@ -275,8 +275,7 @@ def get_data_generators(
     
     if transform is None:
         if isinstance(p, tuple):
-            print(f"Using different p's, for train and test")
-            transform= [get_default_transform(p[0],p[1])]
+            transform= [get_default_transform(p[0]), get_default_transform(p[1])]
         else:
             transform = [get_default_transform(p=p) for _ in range(2)]
     
