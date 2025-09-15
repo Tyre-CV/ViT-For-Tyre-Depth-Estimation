@@ -11,6 +11,14 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 def parse_labels(labels, label_map=None):
+    """
+    Converts labels to a torch tensor of integer indices, using label_map if provided.
+    Args:
+        labels: List, tuple, or tensor of labels.
+        label_map (dict, optional): Mapping from string labels to integer indices.
+    Returns:
+        torch.Tensor: Tensor of label indices.
+    """
     if not torch.is_tensor(labels):
         # labels might be a list/tuple of ints or strings
         if isinstance(labels, (list, tuple)) and labels and isinstance(labels[0], str):
@@ -24,6 +32,12 @@ def parse_labels(labels, label_map=None):
 
 
 def save_loss(losses, save_dir="./losses"):
+    """
+    Saves training and test loss/accuracy metrics to a JSON file, updating existing records.
+    Args:
+        losses (dict): Dictionary of loss and accuracy metrics.
+        save_dir (str): Directory to save the loss file.
+    """
     # Prepare paths
     loss_dir  = os.path.join(save_dir, 'loss')
     os.makedirs(loss_dir, exist_ok=True)
@@ -76,6 +90,14 @@ def spooky():
     print("Booo 👻")
 
 def save_attention_weights(attn_maps, labels, epoch, save_dir="./attention"):
+    """
+    Saves attention weights for each label at a given epoch to a JSON file.
+    Args:
+        attn_maps (list): List of attention maps from the model.
+        labels (Tensor): Tensor of labels for the batch.
+        epoch (int): Current epoch number.
+        save_dir (str): Directory to save the attention weights.
+    """
     os.makedirs(save_dir, exist_ok=True)
     epoch_path = os.path.join(save_dir, f"training_epoch_{epoch:03d}.json")
 
@@ -97,6 +119,14 @@ def save_attention_weights(attn_maps, labels, epoch, save_dir="./attention"):
         
 
 def plot_attention_map(epoch, model, save_dir="./attention", output_dir="./attn_plots"):    
+    """
+    Plots and saves attention heatmaps for each class at a given epoch.
+    Args:
+        epoch (int): Epoch number to plot.
+        model: Model instance (must have patch_size and image_size attributes).
+        save_dir (str): Directory where attention weights are stored.
+        output_dir (str): Directory to save the plots.
+    """
     epoch_path = os.path.join(save_dir, f"training_epoch_{epoch:03d}.json")
     if not os.path.exists(epoch_path):
         raise FileNotFoundError(f"Attention map file for epoch {epoch} not found at {epoch_path}.")
@@ -123,6 +153,14 @@ def plot_attention_map(epoch, model, save_dir="./attention", output_dir="./attn_
 def lighten_hex_color(hex_color, amount=0.5):
     """
     Lighten a HEX color by blending it with white.
+    Args:
+        hex_color (str): HEX color string.
+        amount (float): Amount to lighten (0 = no change, 1 = white).
+    Returns:
+        str: Lightened HEX color string.
+    """
+    """
+    Lighten a HEX color by blending it with white.
     amount: 0 (no change) → 1 (white)
     """
     hex_color = hex_color.lstrip('#')
@@ -140,6 +178,15 @@ def plot_training_progress(
     renderer=None,
     save=False
 ):
+    """
+    Plots training and test loss/accuracy curves from saved loss data.
+    Args:
+        save_path (str): Path to directory containing loss data.
+        number_of_epochs (int, optional): Number of epochs to plot.
+        losses (dict, optional): Loss data (if already loaded).
+        renderer (str, optional): Plotly renderer to use.
+        save (bool): Whether to save the plots as HTML files.
+    """
     # 1) Load nested JSON if not provided
     loss_file = os.path.join(save_path, 'loss', "losses.json")
     if losses is None:
@@ -251,6 +298,17 @@ def plot_training_progress(
     
 
 def save_checkpoint(model, optimizer, epoch, batch_size, loss, checkpoint_dir="checkpoints", history_length=6):
+    """
+    Saves a model checkpoint and manages checkpoint history length.
+    Args:
+        model: Model to save.
+        optimizer: Optimizer state to save.
+        epoch (int): Current epoch number.
+        batch_size (int): Batch size used.
+        loss (dict): Loss and accuracy metrics.
+        checkpoint_dir (str): Directory to save checkpoints.
+        history_length (int): Number of checkpoints to keep.
+    """
     os.makedirs(os.path.join(checkpoint_dir, 'models'), exist_ok=True)  # Create dir if it doesn't exist
 
     # Check how many models are already saved
@@ -286,6 +344,22 @@ def train(
     save_attention=False,
     history_length=6
 ):
+    """
+    Trains a model and evaluates on test data, saving checkpoints and metrics.
+    Args:
+        model: Model to train.
+        train_loader: DataLoader for training data.
+        test_loader: DataLoader for test data.
+        device: Device to use for training (CPU or CUDA).
+        criterion: Loss function.
+        optimizer: Optimizer.
+        num_epochs (int): Number of epochs to train.
+        lr (float): Learning rate.
+        save_path (str): Directory to save checkpoints and metrics.
+        label_map (dict, optional): Mapping from label names to indices.
+        save_attention (bool): Whether to save attention maps.
+        history_length (int): Number of checkpoints to keep.
+    """
     # Setup
     try:
         if criterion is None:

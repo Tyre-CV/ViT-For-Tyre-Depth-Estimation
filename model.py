@@ -8,7 +8,17 @@ import torch.nn as nn
 
 
 class PatchEmbedding(nn.Module):
+    """
+    Converts an input image into a sequence of patch embeddings using a Conv2d layer.
+    """
     def __init__(self, embed_dim=1000, patch_size=(5,5), img_size=(1000, 2000), in_chans=1):
+        """
+        Args:
+            embed_dim (int): Dimension of the embedding.
+            patch_size (tuple): Size of each patch (height, width).
+            img_size (tuple): Size of the input image (height, width).
+            in_chans (int): Number of input channels.
+        """
         super().__init__()
         self.embed_dim = embed_dim
         self.patch_size = patch_size
@@ -23,7 +33,13 @@ class PatchEmbedding(nn.Module):
         )
 
     def forward(self, x):
-        # x: (B, H, W)
+        """
+        Forward pass for patch embedding.
+        Args:
+            x (Tensor): Input tensor of shape (B, H, W).
+        Returns:
+            Tensor: Patch embeddings of shape (B, P, C).
+        """
         B, H, W = x.shape
         x = x.unsqueeze(1)                # (B, 1, H, W)
         x = self.embedding(x)             # (B, C, H', W')
@@ -33,7 +49,16 @@ class PatchEmbedding(nn.Module):
 
 
 class Encoder(nn.Module):
+    """
+    Transformer encoder block with multi-head self-attention and feed-forward layers.
+    """
     def __init__(self, embed_dim, num_heads=8, dropout=0.1):
+        """
+        Args:
+            embed_dim (int): Embedding dimension.
+            num_heads (int): Number of attention heads.
+            dropout (float): Dropout probability.
+        """
         super().__init__()
         self.layerNorm1 = nn.LayerNorm(embed_dim)
         self.layerNorm2 = nn.LayerNorm(embed_dim)
@@ -48,7 +73,13 @@ class Encoder(nn.Module):
         )
 
     def forward(self, x):
-        # x: (B, P, C)
+        """
+        Forward pass for the encoder block.
+        Args:
+            x (Tensor): Input tensor of shape (B, P, C).
+        Returns:
+            tuple: (output tensor, attention weights)
+        """
         residual = x
         x = self.layerNorm1(x)
         x = x.permute(1, 0, 2)                # (P, B, C)
@@ -67,6 +98,9 @@ class Encoder(nn.Module):
 
 
 class Transformer(nn.Module):
+    """
+    Vision Transformer (ViT) model for image classification.
+    """
     def __init__(self,
                  embed_dim=1000,
                  num_layers=6,
@@ -77,6 +111,17 @@ class Transformer(nn.Module):
                  img_size=(1000, 2000),
                  in_chans=1,
                  num_classes=6):
+        """
+        Args:
+            embed_dim (int): Embedding dimension.
+            num_layers (int): Number of transformer encoder layers.
+            num_heads (int): Number of attention heads.
+            dropout (float): Dropout probability.
+            patch_size (tuple): Size of each patch (height, width).
+            img_size (tuple): Size of the input image (height, width).
+            in_chans (int): Number of input channels.
+            num_classes (int): Number of output classes.
+        """
         super().__init__()
         self.embed_dim = embed_dim
         self.num_layers = num_layers
@@ -113,6 +158,14 @@ class Transformer(nn.Module):
         self.classifier = nn.Linear(embed_dim, num_classes)
 
     def forward(self, x, return_attn = False):
+        """
+        Forward pass for the Vision Transformer.
+        Args:
+            x (Tensor): Input tensor of shape (B, H, W).
+            return_attn (bool): Whether to return attention maps.
+        Returns:
+            Tensor or tuple: Logits, or (logits, attention maps) if return_attn is True.
+        """
         attn_maps = []
 
         # x: (B, H, W)
@@ -138,6 +191,13 @@ class Transformer(nn.Module):
         return logits, attn_maps if return_attn else logits
 
     def classify(self, x):
+        """
+        Returns softmax probabilities for input x.
+        Args:
+            x (Tensor): Input tensor.
+        Returns:
+            Tensor: Softmax probabilities over classes.
+        """
         logits = self.forward(x)
         # Normalise logits to make less spiky?
         return torch.softmax(logits, dim=-1)

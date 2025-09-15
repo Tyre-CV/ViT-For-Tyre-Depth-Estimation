@@ -13,6 +13,12 @@ from tqdm.notebook import tqdm
 from torchvision.transforms import v2 as T
 
 def setup_kaggle(input_dir = "/kaggle/input/tyre-cv-data/augmented_renamed",output_dir = "/kaggle/working/classified_tires"):
+    """
+    Organizes and classifies tire images from the input directory into class-based folders in the output directory.
+    Args:
+        input_dir (str): Path to the directory containing input images.
+        output_dir (str): Path to the directory where classified images will be stored.
+    """
     # Configuration
     copy_files = True  # Set to False to move files instead of copying
 
@@ -90,6 +96,18 @@ def get_default_transform(
     blur_kernel=5,
     blur_sigma=(0.1, 2.0),
 ):
+    """
+    Returns a torchvision transform pipeline with various augmentations for tire images.
+    Args:
+        p (float): Probability for each random transform.
+        posterize_bits (int): Bits for posterization.
+        solarize_thresh (int): Threshold for solarization.
+        sharpness_factor (float): Factor for sharpness adjustment.
+        blur_kernel (int): Kernel size for Gaussian blur.
+        blur_sigma (tuple): Sigma range for Gaussian blur.
+    Returns:
+        torchvision.transforms.Compose: Composed transform.
+    """
     return transforms.Compose([
         # v2 random effects
         T.RandomPosterize(bits=posterize_bits, p=p),
@@ -112,7 +130,16 @@ def get_default_transform(
     ])
 
 class TirePairDataset(Dataset):
+    """
+    PyTorch Dataset for loading paired left and right tire images from a directory structure.
+    Each sample is a concatenated (side-by-side) grayscale image and its class index.
+    """
     def __init__(self, root_dir, transform=None):
+        """
+        Args:
+            root_dir (str): Root directory containing class folders with images.
+            transform (callable, optional): Transform to apply to the concatenated image.
+        """
         self.root_dir = root_dir
         self.transform = transform
         self.classes = sorted(os.listdir(root_dir)) 
@@ -120,6 +147,11 @@ class TirePairDataset(Dataset):
         self.samples = self._prepare_samples()
 
     def _prepare_samples(self):
+        """
+        Prepares paired left and right images for each class.
+        Returns:
+            list: List of sample dicts with left, right image paths and class index.
+        """
         samples = []
         for class_name in self.classes:
             class_dir = os.path.join(self.root_dir, class_name)
@@ -142,9 +174,19 @@ class TirePairDataset(Dataset):
         return samples
 
     def __len__(self):
+        """
+        Returns the number of samples in the dataset.
+        """
         return len(self.samples)
 
     def __getitem__(self, idx):
+        """
+        Returns a sample consisting of a concatenated left-right image and its class index.
+        Args:
+            idx (int): Index of the sample.
+        Returns:
+            tuple: (image tensor, class index)
+        """
         sample = self.samples[idx]
         left_img = Image.open(sample['left']).convert('L')
         right_img = Image.open(sample['right']).convert('L')
@@ -162,11 +204,25 @@ class TirePairDataset(Dataset):
         return img, sample['class_idx']
 
 def get_file_name(file_path):
+    """
+    Extracts the file name without extension from a file path.
+    Args:
+        file_path (str): Path to the file.
+    Returns:
+        str: File name without extension.
+    """
     base_name = os.path.basename(file_path)
     name, _ = os.path.splitext(base_name)
     return name
 
 def get_info(file_path):
+    """
+    Extracts id, label, and side information from a file path.
+    Args:
+        file_path (str): Path to the file.
+    Returns:
+        dict: Dictionary with keys 'id', 'side', and 'label'.
+    """
     file_name = get_file_name(file_path)
     parts = file_name.split('_')
     
@@ -189,12 +245,13 @@ def get_info(file_path):
     )
 
 def group_stereo(img_paths):
-    # Returns a dict:  { bucket_label: [
-    #   {
-    #       'left': path_to_left_image,
-    #       'right': path_to_right_image,
-    #   }
-    # ]     }
+    """
+    Groups stereo image pairs (left and right) by label.
+    Args:
+        img_paths (str): Directory containing images.
+    Returns:
+        dict: Dictionary mapping label to list of stereo pairs.
+    """
     file_names = os.listdir(img_paths)
     file_names = [os.path.join(img_paths, f) for f in file_names]
 
@@ -217,7 +274,18 @@ def group_stereo(img_paths):
         
 
 class TyrePairDataset(Dataset):
+    """
+    PyTorch Dataset for loading stereo (left-right) tire image pairs from a directory.
+    Each sample is a concatenated grayscale image and its label.
+    """
     def __init__(self, data_dir, transform=None, sample=False, sampling_size=None):
+        """
+        Args:
+            data_dir (str): Directory containing tire images.
+            transform (callable, optional): Transform to apply to the concatenated image.
+            sample (bool): Whether to sample randomly from the dataset.
+            sampling_size (int, optional): Number of samples to draw if sampling.
+        """
         super().__init__()
         self.transform = transform
         if sample and sampling_size is None:
@@ -230,11 +298,21 @@ class TyrePairDataset(Dataset):
         self.samples = [item for values in self.grouped_paths.values() for item in values]
         
     def __len__(self):
+        """
+        Returns the number of samples in the dataset.
+        """
         if self.sample:
             return self.sampling_size
         return len(self.samples)
 
     def __getitem__(self, idx):
+        """
+        Returns a sample consisting of a concatenated left-right image and its label.
+        Args:
+            idx (int): Index of the sample.
+        Returns:
+            tuple: (image tensor, label)
+        """
         if self.sample:
             sample = random.choice(self.samples)  # Randomly select a sample
         else:
@@ -253,7 +331,6 @@ class TyrePairDataset(Dataset):
         else:
             img = transforms.ToTensor()(combined)
 
-        
         # Squeeze the image to remove the channel dimension
         img = img.squeeze(0)  # Assuming the image is grayscale, this will remove the channel dimension
 
@@ -272,7 +349,20 @@ def get_data_generators(
     p=0.05, # can either be one value for both or a tuple (p_train, p_test)
     sampling_size=None 
 ):
-    
+    """
+    Creates PyTorch DataLoader generators for training and testing datasets.
+    Args:
+        train_dir (str): Directory for training data.
+        test_dir (str): Directory for test data.
+        batch_size (int): Batch size for DataLoader.
+        transform (callable, optional): Transform to apply to images.
+        shuffle_train (bool): Whether to shuffle the training data.
+        num_workers (int): Number of worker processes for data loading.
+        p (float or tuple): Probability for data augmentation transforms.
+        sampling_size (int, optional): Number of samples to draw if sampling.
+    Returns:
+        tuple: (train_loader, test_loader)
+    """
     if transform is None:
         if isinstance(p, tuple):
             transform= [get_default_transform(p[0]), get_default_transform(p[1])]
